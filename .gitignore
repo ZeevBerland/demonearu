@@ -1,0 +1,38 @@
+# Node
+node_modules/
+dist/
+out/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+venv/
+.venv/
+pretrained_models/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Electron
+release/
+
+# SQLite
+*.db
+*.db-journal
+
+# Logs
+*.log

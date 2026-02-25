@@ -16,13 +16,9 @@ import { ChatLog } from '../components/ChatLog'
 
 export function SessionPage() {
   const status = useSessionStore((s) => s.status)
-  const addMessage = useSessionStore((s) => s.addMessage)
   const setStatus = useSessionStore((s) => s.setStatus)
   const setPartial = useSessionStore((s) => s.setPartialTranscript)
-  const dequeueAudio = useSessionStore((s) => s.dequeueAudio)
-  const clearAudioQueue = useSessionStore((s) => s.clearAudioQueue)
   const setAudioStreaming = useSessionStore((s) => s.setAudioStreaming)
-  const audioQueue = useSessionStore((s) => s.audioQueue)
   const audioStreaming = useSessionStore((s) => s.audioStreaming)
   const cameraEnabled = useSessionStore((s) => s.settings.cameraEnabled)
 
@@ -36,7 +32,7 @@ export function SessionPage() {
 
   const reset = useSessionStore((s) => s.reset)
 
-  const { send } = useWebSocket()
+  const { send, audioChunkCbRef } = useWebSocket()
   const { transcribe } = useSTT()
 
   const onPcmChunk = useCallback(
@@ -133,21 +129,18 @@ export function SessionPage() {
     useSessionStore.getState().setStatus('speaking')
   }, [flushPending])
 
+  // Wire audio chunk callback — no Zustand involvement
   useEffect(() => {
-    let enqueued = false
-    while (true) {
-      const b64 = dequeueAudio()
-      if (!b64) break
+    audioChunkCbRef.current = (b64: string) => {
       pendingRef.current.push(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)))
-      enqueued = true
+      if (!msRef.current) {
+        initMediaSource()
+      } else {
+        flushPending()
+      }
     }
-    if (!enqueued) return
-    if (!msRef.current) {
-      initMediaSource()
-    } else {
-      flushPending()
-    }
-  }, [audioQueue, dequeueAudio, initMediaSource, flushPending])
+    return () => { audioChunkCbRef.current = null }
+  }, [audioChunkCbRef, initMediaSource, flushPending])
 
   useEffect(() => {
     if (!audioStreaming && msRef.current) {
@@ -160,13 +153,12 @@ export function SessionPage() {
 
   const handlePTTStart = useCallback(() => {
     teardownMediaSource()
-    clearAudioQueue()
     setAudioStreaming(false)
 
     setPartial('')
     startAudio()
     if (cameraEnabled) startVideo()
-  }, [teardownMediaSource, startAudio, startVideo, cameraEnabled, setPartial, clearAudioQueue, setAudioStreaming])
+  }, [teardownMediaSource, startAudio, startVideo, cameraEnabled, setPartial, setAudioStreaming])
 
   const serMode = useSessionStore((s) => s.settings.serMode)
 
@@ -181,23 +173,10 @@ export function SessionPage() {
     if (serMode === 'gemini') {
       send('turn.complete', { duration_ms: 0 })
     } else {
-      const transcript = await transcribe(audioBlob)
-      if (!transcript.trim()) {
-        setStatus('idle')
-        return
-      }
-
-      setPartial(transcript)
-      addMessage({
-        id: crypto.randomUUID(),
-        role: 'user',
-        text: transcript,
-        timestamp: Date.now()
-      })
-
-      send('stt.final', { text: transcript, duration_ms: 0 })
+      const audioB64 = await transcribe(audioBlob)
+      send('stt.request', { data: audioB64, duration_ms: 0 })
     }
-  }, [stopAudio, stopVideo, transcribe, send, addMessage, setStatus, setPartial, serMode])
+  }, [stopAudio, stopVideo, transcribe, send, setStatus, serMode])
 
   usePushToTalk({ onStart: handlePTTStart, onStop: handlePTTStop })
 
@@ -209,6 +188,11 @@ export function SessionPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-semibold tracking-tight">Nearu Sense</h1>
           <div className="flex items-center gap-3">
+            {cameraEnabled && (
+              <span className="text-[10px] text-gray-600 bg-surface-2 px-2 py-0.5 rounded">
+                Camera processing is local
+              </span>
+            )}
             <button
               onClick={() => { teardownMediaSource(); reset(); }}
               className="rounded px-2.5 py-1 text-xs text-gray-400 hover:text-white hover:bg-surface-2 transition-colors"

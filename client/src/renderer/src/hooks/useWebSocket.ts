@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useSessionStore } from '../store/sessionStore'
-import type { FusedEmotion, InterpretedEmotion, SERResult, VERResult } from '../types'
+import type { FusedEmotion, InterpretedEmotion, SensorFusedEmotion, SERResult, VERResult } from '../types'
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8765/ws'
 const RECONNECT_DELAY = 2000
 
+export type AudioChunkCallback = (b64: string) => void
+
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>()
+  const audioChunkCbRef = useRef<AudioChunkCallback | null>(null)
 
   const sessionId = useSessionStore((s) => s.sessionId)
   const setSessionId = useSessionStore((s) => s.setSessionId)
@@ -16,8 +19,8 @@ export function useWebSocket() {
   const setFused = useSessionStore((s) => s.setFused)
   const setPartial = useSessionStore((s) => s.setPartialTranscript)
   const addMessage = useSessionStore((s) => s.addMessage)
-  const enqueueAudio = useSessionStore((s) => s.enqueueAudio)
   const setAudioStreaming = useSessionStore((s) => s.setAudioStreaming)
+  const setSensorFused = useSessionStore((s) => s.setSensorFused)
   const setInterpreted = useSessionStore((s) => s.setInterpreted)
   const setStatus = useSessionStore((s) => s.setStatus)
   const mergeDebug = useSessionStore((s) => s.mergeDebugMetrics)
@@ -35,6 +38,8 @@ export function useWebSocket() {
         session_id: id,
         ser_mode: state.settings.serMode,
         fusion: state.settings.fusion,
+        device_id: state.deviceId,
+        memory_enabled: state.memoryEnabled,
       })
     }
 
@@ -55,7 +60,7 @@ export function useWebSocket() {
   }, [sessionId])
 
   const dispatch = useCallback(
-    (type: string, payload: Record<string, unknown>, sid: string | null) => {
+    (type: string, payload: Record<string, unknown>, _sid: string | null) => {
       switch (type) {
         case 'session.started':
           setSessionId(payload.session_id as string)
@@ -82,6 +87,9 @@ export function useWebSocket() {
         case 'emotion.fused':
           setFused(payload as unknown as FusedEmotion)
           break
+        case 'emotion.sensor_fused':
+          setSensorFused(payload as unknown as SensorFusedEmotion)
+          break
         case 'emotion.interpreted':
           setInterpreted(payload as unknown as InterpretedEmotion)
           break
@@ -92,26 +100,45 @@ export function useWebSocket() {
             text: payload.text as string,
             timestamp: Date.now(),
             tone: payload.tone as string,
-            followUp: payload.follow_up_question as string | undefined
+            followUp: payload.follow_up_question as string | undefined,
+            reasoning: (payload.interpreted_emotion as Record<string, unknown>)?.reasoning as string | undefined,
           })
           setAudioStreaming(true)
           setStatus('speaking')
           break
         case 'assistant.audio_chunk':
-          enqueueAudio(payload.audio_b64 as string)
+          audioChunkCbRef.current?.(payload.audio_b64 as string)
           break
         case 'assistant.audio_done':
           setAudioStreaming(false)
           break
-        case 'assistant.audio_ready':
-          enqueueAudio(payload.audio_b64 as string)
+        case 'assistant.response_start':
+          setStatus('thinking')
+          break
+        case 'assistant.response_end':
+          if (useSessionStore.getState().status !== 'speaking') {
+            setStatus('idle')
+          }
+          break
+        case 'session.ready':
+          break
+        case 'stt.error':
+          addMessage({
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            text: (payload.message as string) || "I didn't catch that, try again.",
+            timestamp: Date.now(),
+          })
+          setStatus('idle')
+          break
+        case 'memory.cleared':
           break
         case 'debug.metrics':
           mergeDebug(payload as Record<string, number>)
           break
       }
     },
-    [setSER, setVER, setFused, setInterpreted, setPartial, addMessage, enqueueAudio, setAudioStreaming, setStatus, setSessionId, mergeDebug]
+    [setSER, setVER, setFused, setSensorFused, setInterpreted, setPartial, addMessage, setAudioStreaming, setStatus, setSessionId, mergeDebug]
   )
 
   const send = useCallback((type: string, payload: Record<string, unknown> = {}) => {
@@ -119,9 +146,11 @@ export function useWebSocket() {
     if (!ws || ws.readyState !== WebSocket.OPEN) return
     ws.send(
       JSON.stringify({
+        v: 1,
         type,
         payload,
-        session_id: useSessionStore.getState().sessionId
+        session_id: useSessionStore.getState().sessionId,
+        ts: Date.now(),
       })
     )
   }, [])
@@ -136,5 +165,5 @@ export function useWebSocket() {
     return disconnect
   }, [connect, disconnect])
 
-  return { send, wsRef }
+  return { send, wsRef, audioChunkCbRef }
 }

@@ -6,7 +6,7 @@ from typing import AsyncIterator
 
 from openai import AsyncOpenAI
 
-CHUNK_SIZE = 12_288
+CHUNK_SIZE = int(os.getenv("TTS_CHUNK_SIZE", "12288"))
 
 MODELS_WITH_INSTRUCTIONS = {"gpt-4o-mini-tts"}
 

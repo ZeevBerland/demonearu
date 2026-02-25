@@ -104,5 +104,13 @@ class SERService:
 
         return {"label": label, "confidence": round(confidence, 3), "rms": round(rms, 4)}
 
+    async def warmup(self) -> None:
+        """Run a dummy inference to warm JIT caches."""
+        if self._pipe is None:
+            return
+        dummy = np.zeros(16_000, dtype=np.float32)
+        await asyncio.to_thread(self._classify, dummy)
+        print("[ser] Warmup complete.")
+
     def _classify(self, pcm: np.ndarray) -> list[dict]:
         return self._pipe({"raw": pcm, "sampling_rate": 16_000})

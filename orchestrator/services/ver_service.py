@@ -5,22 +5,19 @@ import asyncio
 import cv2
 import numpy as np
 
-NORMALIZE: dict[str, str] = {
-    "anger": "angry",
-    "happiness": "happy",
-    "sadness": "sad",
-    "surprise": "surprised",
-    "fear": "fearful",
-}
+from models.schemas import normalize_label
 
 
 class VERService:
     """Visual Emotion Recognition using hsemotion-onnx (CPU-friendly)."""
 
+    FACE_LOST_COOLDOWN = 3
+
     def __init__(self) -> None:
         self._model = None
         self._face_cascade = None
         self._frame_count = 0
+        self._no_face_streak = 0
 
     async def load(self) -> None:
         self._model = await asyncio.to_thread(self._load_model)
@@ -58,6 +55,14 @@ class VERService:
         except Exception:
             return {"label": "neutral", "confidence": 0.0, "face_present": False}
 
+    async def warmup(self) -> None:
+        """Run a dummy inference to warm ONNX runtime."""
+        if self._model is None:
+            return
+        dummy = np.zeros((240, 320, 3), dtype=np.uint8)
+        await asyncio.to_thread(self._predict, dummy)
+        print("[ver] Warmup complete.")
+
     def _predict(self, frame: np.ndarray) -> dict:
         if self._face_cascade is None:
             self._face_cascade = cv2.CascadeClassifier(
@@ -67,14 +72,16 @@ class VERService:
         faces = self._face_cascade.detectMultiScale(gray, 1.1, 3, minSize=(30, 30))
 
         if len(faces) == 0:
-            return {"label": "neutral", "confidence": 0.0, "face_present": False}
+            self._no_face_streak += 1
+            face_present = self._no_face_streak < self.FACE_LOST_COOLDOWN
+            return {"label": "neutral", "confidence": 0.0, "face_present": face_present}
 
+        self._no_face_streak = 0
         x, y, w, h = faces[0]
         face_img = frame[y : y + h, x : x + w]
 
         emotion, scores = self._model.predict_emotions(face_img, logits=False)
-        raw_label = emotion.lower()
-        label = NORMALIZE.get(raw_label, raw_label)
+        label = normalize_label(emotion)
         confidence = float(max(scores)) if scores is not None else 0.0
 
         return {

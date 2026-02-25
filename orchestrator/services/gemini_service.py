@@ -15,17 +15,23 @@ SYSTEM_PROMPT = (
     "  • SER (Speech Emotion Recognition) — emotion detected from the user's voice\n"
     "  • VER (Visual Emotion Recognition) — emotion detected from the user's face via webcam\n\n"
     "Your job:\n"
-    "1. Interpret the user's TRUE emotional state by reasoning about both signals "
-    "(they may agree, conflict, or one may be missing/unreliable).\n"
-    "2. Craft a response that naturally adapts to the interpreted emotion — "
+    "1. Report `voice_emotion` — your best reading of the voice signal alone.\n"
+    "2. Report `face_emotion` — your best reading of the face signal alone.\n"
+    "3. Report `interpreted_emotion` — the COMBINED state after genuinely weighing "
+    "both voice AND face. This must NOT simply copy voice_emotion; if the face "
+    "shows a different emotion, blend or choose the stronger signal.\n"
+    "4. Craft a response that naturally adapts to the interpreted emotion — "
     "NEVER say 'I can see you are sad' directly.\n"
-    "3. Choose a speech speed that matches the emotional moment "
-    "(slower for comforting, normal for neutral, slightly faster for energetic).\n\n"
+    "5. Choose a speech speed that matches the emotional moment.\n\n"
     "Guidelines:\n"
+    "- Give roughly equal weight to voice and face when both are available and confident.\n"
+    "- If one signal is low-confidence or missing, rely more on the other.\n"
+    "- If voice and face conflict strongly, avoid emotional certainty and respond neutrally supportive.\n"
+    "- If signals are weak or conflicting, use neutral or lower confidence rather than guessing.\n"
+    "- When the user seems stressed, prefer shorter, step-by-step replies.\n"
     "- If the user seems angry or fearful, be reassuring and gentle.\n"
     "- If the user seems happy or surprised, match their energy.\n"
     "- If the user seems sad, be gentle and supportive.\n"
-    "- If SER and VER conflict, trust voice more when the user is speaking actively.\n"
     "- Always be warm but not patronising."
 )
 
@@ -35,40 +41,62 @@ UNIFIED_SYSTEM_PROMPT = (
     "You will receive an audio clip of the user speaking plus visual emotion data from their webcam.\n"
     "Your job:\n"
     "1. Transcribe what the user said.\n"
-    "2. Analyze the speaker's vocal emotion from the audio.\n"
-    "3. Consider the visual emotion data from the camera.\n"
-    "4. Determine the user's TRUE emotional state from both signals.\n"
-    "5. Generate an empathetic response.\n"
+    "2. Report `voice_emotion` — the emotion you detect from the audio alone.\n"
+    "3. Report `face_emotion` — the emotion from the camera data alone.\n"
+    "4. Report `interpreted_emotion` — the COMBINED state after genuinely weighing "
+    "both voice AND face. This must NOT simply copy voice_emotion; if the face "
+    "shows a different emotion, blend or choose the stronger signal.\n"
+    "5. Generate an empathetic response adapted to the combined state.\n"
     "6. Choose a speech speed that matches the emotional moment.\n\n"
+    "Give roughly equal weight to voice and face when both are available and confident. "
+    "If voice and face conflict strongly, avoid emotional certainty and respond neutrally supportive. "
+    "If signals are weak or conflicting, use neutral or lower confidence rather than guessing. "
+    "When the user seems stressed, prefer shorter, step-by-step replies. "
     "Never say 'I can see you are sad' directly; adjust your tone naturally. "
     "Always be warm but not patronising."
 )
+
+_EMOTION_OBJECT = {
+    "type": "object",
+    "properties": {
+        "label": {
+            "type": "string",
+            "enum": [
+                "angry", "calm", "contempt", "disgust",
+                "fearful", "happy", "neutral", "sad", "surprised",
+            ],
+        },
+        "confidence": {
+            "type": "number",
+            "description": "Confidence 0.0-1.0",
+        },
+    },
+    "required": ["label", "confidence"],
+}
 
 RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {
         "assistant_text": {"type": "string", "description": "The response to the user"},
+        "voice_emotion": {
+            **_EMOTION_OBJECT,
+            "description": "Emotion detected purely from the user's VOICE (SER signal only)",
+        },
+        "face_emotion": {
+            **_EMOTION_OBJECT,
+            "description": "Emotion detected purely from the user's FACE (VER signal only)",
+        },
         "interpreted_emotion": {
             "type": "object",
             "properties": {
-                "label": {
-                    "type": "string",
-                    "enum": [
-                        "angry", "calm", "contempt", "disgust",
-                        "fearful", "happy", "neutral", "sad", "surprised",
-                    ],
-                    "description": "The LLM's assessment of the user's true emotional state",
-                },
-                "confidence": {
-                    "type": "number",
-                    "description": "Confidence 0.0-1.0 in the interpretation",
-                },
+                **_EMOTION_OBJECT["properties"],
                 "reasoning": {
                     "type": "string",
-                    "description": "Brief explanation of how SER and VER were reconciled",
+                    "description": "Brief explanation of how voice and face signals were reconciled",
                 },
             },
             "required": ["label", "confidence"],
+            "description": "The COMBINED emotional state after weighing both voice and face signals",
         },
         "tts_speed": {
             "type": "number",
@@ -83,34 +111,32 @@ RESPONSE_SCHEMA = {
             "description": "Any safety concern detected (leave empty if none)",
         },
     },
-    "required": ["assistant_text", "interpreted_emotion", "tts_speed"],
+    "required": ["assistant_text", "voice_emotion", "face_emotion", "interpreted_emotion", "tts_speed"],
 }
 
 UNIFIED_RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {
         "transcript": {"type": "string", "description": "Verbatim transcription of the user's speech"},
+        "voice_emotion": {
+            **_EMOTION_OBJECT,
+            "description": "Emotion detected purely from the user's VOICE in the audio clip",
+        },
+        "face_emotion": {
+            **_EMOTION_OBJECT,
+            "description": "Emotion detected purely from the user's FACE (VER data provided)",
+        },
         "interpreted_emotion": {
             "type": "object",
             "properties": {
-                "label": {
-                    "type": "string",
-                    "enum": [
-                        "angry", "calm", "contempt", "disgust",
-                        "fearful", "happy", "neutral", "sad", "surprised",
-                    ],
-                    "description": "The LLM's assessment of the user's true emotional state",
-                },
-                "confidence": {
-                    "type": "number",
-                    "description": "Confidence 0.0-1.0 in the interpretation",
-                },
+                **_EMOTION_OBJECT["properties"],
                 "reasoning": {
                     "type": "string",
-                    "description": "Brief explanation of how voice + face signals were reconciled",
+                    "description": "Brief explanation of how voice and face signals were reconciled",
                 },
             },
             "required": ["label", "confidence"],
+            "description": "The COMBINED emotional state after weighing both voice and face signals",
         },
         "assistant_text": {"type": "string", "description": "The response to the user"},
         "tts_speed": {
@@ -126,10 +152,12 @@ UNIFIED_RESPONSE_SCHEMA = {
             "description": "Any safety concern detected (leave empty if none)",
         },
     },
-    "required": ["transcript", "interpreted_emotion", "assistant_text", "tts_speed"],
+    "required": ["transcript", "voice_emotion", "face_emotion", "interpreted_emotion", "assistant_text", "tts_speed"],
 }
 
 _EMOTION_DEFAULTS = {
+    "voice_emotion": {"label": "neutral", "confidence": 0.0},
+    "face_emotion": {"label": "neutral", "confidence": 0.0},
     "interpreted_emotion": {"label": "neutral", "confidence": 0.0},
     "tts_speed": 1.0,
 }
@@ -145,6 +173,10 @@ def _pcm_f32_to_wav(pcm: np.ndarray, sample_rate: int = 16_000) -> bytes:
         wf.setframerate(sample_rate)
         wf.writeframes(pcm_16.tobytes())
     return buf.getvalue()
+
+
+TTS_SPEED_MIN = 0.8
+TTS_SPEED_MAX = 1.2
 
 
 class GeminiService:
@@ -171,6 +203,15 @@ class GeminiService:
             ),
         )
 
+    @staticmethod
+    def _validate_and_clamp(result: dict) -> dict:
+        """Apply defaults and clamp TTS speed."""
+        for k, v in _EMOTION_DEFAULTS.items():
+            result.setdefault(k, v)
+        speed = float(result.get("tts_speed", 1.0))
+        result["tts_speed"] = max(TTS_SPEED_MIN, min(TTS_SPEED_MAX, speed))
+        return result
+
     # ── text-only path (local / hybrid modes) ─────────────────────
 
     async def generate(
@@ -182,22 +223,25 @@ class GeminiService:
         context_block = self._build_context(raw_signals, recent_turns)
         prompt = f"{context_block}\n\nUser: {transcript}"
 
-        try:
-            response = await self._model.generate_content_async(prompt)
-            result = json.loads(response.text)
-            for k, v in _EMOTION_DEFAULTS.items():
-                result.setdefault(k, v)
-            return result
-        except json.JSONDecodeError:
-            return {
-                "assistant_text": response.text,
-                **_EMOTION_DEFAULTS,
-            }
-        except Exception as exc:
-            return {
-                "assistant_text": f"I'm sorry, I had trouble generating a response. ({exc})",
-                **_EMOTION_DEFAULTS,
-            }
+        for attempt in range(2):
+            try:
+                response = await self._model.generate_content_async(prompt)
+                result = json.loads(response.text)
+                return self._validate_and_clamp(result)
+            except json.JSONDecodeError:
+                if attempt == 0:
+                    print("[gemini] JSON parse failed, retrying …")
+                    continue
+                return {
+                    "assistant_text": response.text if response else "",
+                    **_EMOTION_DEFAULTS,
+                }
+            except Exception as exc:
+                return {
+                    "assistant_text": f"I'm sorry, I had trouble generating a response. ({exc})",
+                    **_EMOTION_DEFAULTS,
+                }
+        return {"assistant_text": "", **_EMOTION_DEFAULTS}
 
     # ── unified audio path (gemini mode) ──────────────────────────
 
@@ -248,28 +292,31 @@ class GeminiService:
             }
         }
 
-        try:
-            response = await self._unified_model.generate_content_async(
-                [text_prompt, audio_part]
-            )
-            result = json.loads(response.text)
-            result.setdefault("transcript", "")
-            result.setdefault("assistant_text", "")
-            for k, v in _EMOTION_DEFAULTS.items():
-                result.setdefault(k, v)
-            return result
-        except json.JSONDecodeError:
-            return {
-                "transcript": "",
-                "assistant_text": response.text if response else "",
-                **_EMOTION_DEFAULTS,
-            }
-        except Exception as exc:
-            return {
-                "transcript": "",
-                "assistant_text": f"I'm sorry, I had trouble generating a response. ({exc})",
-                **_EMOTION_DEFAULTS,
-            }
+        for attempt in range(2):
+            try:
+                response = await self._unified_model.generate_content_async(
+                    [text_prompt, audio_part]
+                )
+                result = json.loads(response.text)
+                result.setdefault("transcript", "")
+                result.setdefault("assistant_text", "")
+                return self._validate_and_clamp(result)
+            except json.JSONDecodeError:
+                if attempt == 0:
+                    print("[gemini-unified] JSON parse failed, retrying …")
+                    continue
+                return {
+                    "transcript": "",
+                    "assistant_text": response.text if response else "",
+                    **_EMOTION_DEFAULTS,
+                }
+            except Exception as exc:
+                return {
+                    "transcript": "",
+                    "assistant_text": f"I'm sorry, I had trouble generating a response. ({exc})",
+                    **_EMOTION_DEFAULTS,
+                }
+        return {"transcript": "", "assistant_text": "", **_EMOTION_DEFAULTS}
 
     # ── shared helpers ────────────────────────────────────────────
 

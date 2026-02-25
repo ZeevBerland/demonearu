@@ -7,25 +7,28 @@ import type {
   EmotionSnapshot,
   FusedEmotion,
   InterpretedEmotion,
+  SensorFusedEmotion,
   SERResult,
   VERResult
 } from '../types'
 
 interface SessionState {
   sessionId: string | null
+  deviceId: string
   status: AppStatus
   currentPage: 'session' | 'settings'
   showDebug: boolean
+  memoryEnabled: boolean
 
   partialTranscript: string
   serEmotion: SERResult | null
   verEmotion: VERResult | null
   fusedEmotion: FusedEmotion | null
+  sensorFused: SensorFusedEmotion | null
   interpretedEmotion: InterpretedEmotion | null
   emotionHistory: EmotionSnapshot[]
 
   messages: ChatMessage[]
-  audioQueue: string[]
   audioStreaming: boolean
 
   settings: AppSettings
@@ -35,17 +38,16 @@ interface SessionState {
   setStatus: (s: AppStatus) => void
   setPage: (p: 'session' | 'settings') => void
   toggleDebug: () => void
+  setMemoryEnabled: (v: boolean) => void
 
   setPartialTranscript: (t: string) => void
   setSER: (r: SERResult) => void
   setVER: (r: VERResult) => void
   setFused: (f: FusedEmotion) => void
+  setSensorFused: (f: SensorFusedEmotion) => void
   setInterpreted: (e: InterpretedEmotion) => void
 
   addMessage: (m: ChatMessage) => void
-  enqueueAudio: (b64: string) => void
-  dequeueAudio: () => string | undefined
-  clearAudioQueue: () => void
   setAudioStreaming: (s: boolean) => void
 
   updateSettings: (patch: Partial<AppSettings>) => void
@@ -59,38 +61,54 @@ const DEFAULT_SETTINGS: AppSettings = {
   emotionSensitivity: 0.5,
   serMode: 'local',
   fusion: {
-    emaAlpha: 0.90,
+    emaAlpha: 0.50,
     trendWindowSec: 2.0,
     bufferMax: 40,
     voiceWeight: 0.4,
   },
   demoMode: false,
   demoEmotion: 'neutral',
-  cameraEnabled: true
+  cameraEnabled: true,
+  simulateNoFace: false,
+  simulateSttFailure: false,
+  simulateCameraOff: false,
 }
 
 const DEFAULT_METRICS: DebugMetrics = {
   ser_ms: 0,
   ver_ms: 0,
   llm_ms: 0,
-  tts_ms: 0
+  tts_ms: 0,
+  tts_first_chunk_ms: 0,
 }
 
-export const useSessionStore = create<SessionState>((set, get) => ({
+function getOrCreateDeviceId(): string {
+  const KEY = 'nearu_device_id'
+  let id = localStorage.getItem(KEY)
+  if (!id) {
+    id = crypto.randomUUID()
+    localStorage.setItem(KEY, id)
+  }
+  return id
+}
+
+export const useSessionStore = create<SessionState>((set) => ({
   sessionId: null,
+  deviceId: getOrCreateDeviceId(),
   status: 'idle',
   currentPage: 'session',
   showDebug: false,
+  memoryEnabled: true,
 
   partialTranscript: '',
   serEmotion: null,
   verEmotion: null,
   fusedEmotion: null,
+  sensorFused: null,
   interpretedEmotion: null,
   emotionHistory: [],
 
   messages: [],
-  audioQueue: [],
   audioStreaming: false,
 
   settings: { ...DEFAULT_SETTINGS },
@@ -100,6 +118,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setStatus: (s) => set({ status: s }),
   setPage: (p) => set({ currentPage: p }),
   toggleDebug: () => set((s) => ({ showDebug: !s.showDebug })),
+  setMemoryEnabled: (v) => set({ memoryEnabled: v }),
 
   setPartialTranscript: (t) => set({ partialTranscript: t }),
   setSER: (r) => set({ serEmotion: r }),
@@ -112,18 +131,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         { ts: Date.now(), dominant: f.dominant, confidence: f.confidence }
       ]
     })),
+  setSensorFused: (f) => set({ sensorFused: f }),
   setInterpreted: (e) => set({ interpretedEmotion: e }),
 
   addMessage: (m) => set((s) => ({ messages: [...s.messages, m] })),
-  enqueueAudio: (b64) => set((s) => ({ audioQueue: [...s.audioQueue, b64] })),
-  dequeueAudio: () => {
-    const q = get().audioQueue
-    if (q.length === 0) return undefined
-    const first = q[0]
-    set({ audioQueue: q.slice(1) })
-    return first
-  },
-  clearAudioQueue: () => set({ audioQueue: [], audioStreaming: false }),
   setAudioStreaming: (s) => set({ audioStreaming: s }),
 
   updateSettings: (patch) =>
@@ -138,10 +149,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       serEmotion: null,
       verEmotion: null,
       fusedEmotion: null,
+      sensorFused: null,
       interpretedEmotion: null,
       emotionHistory: [],
       messages: [],
-      audioQueue: [],
       audioStreaming: false,
       debugMetrics: { ...DEFAULT_METRICS }
     })

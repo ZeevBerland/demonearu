@@ -1,38 +1,19 @@
-import { useCallback, useRef } from 'react'
-import OpenAI from 'openai'
-import { useSessionStore } from '../store/sessionStore'
+import { useCallback } from 'react'
 
-const client = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true
-})
-
+/**
+ * Server-side STT: sends audio blob to orchestrator via WebSocket.
+ * The orchestrator calls OpenAI Whisper and returns stt.final / stt.error.
+ */
 export function useSTT() {
-  const settings = useSessionStore((s) => s.settings)
-  const busyRef = useRef(false)
-
   const transcribe = useCallback(
     async (audioBlob: Blob): Promise<string> => {
-      if (busyRef.current) return ''
-      busyRef.current = true
-
-      try {
-        const file = new File([audioBlob], 'recording.webm', { type: 'audio/webm' })
-        const result = await client.audio.transcriptions.create({
-          file,
-          model: settings.sttModel,
-          language: 'en',
-          prompt: 'The user is speaking in English in a conversational tone.',
-        })
-        return result.text
-      } catch (err) {
-        console.error('[STT] Transcription failed:', err)
-        return ''
-      } finally {
-        busyRef.current = false
-      }
+      const buf = await audioBlob.arrayBuffer()
+      const b64 = btoa(
+        new Uint8Array(buf).reduce((acc, byte) => acc + String.fromCharCode(byte), '')
+      )
+      return b64
     },
-    [settings.sttModel]
+    []
   )
 
   return { transcribe }

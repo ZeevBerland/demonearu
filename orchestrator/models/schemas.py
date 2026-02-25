@@ -18,6 +18,25 @@ class Emotion(str, Enum):
     CONTEMPT = "contempt"
 
 
+CANONICAL_LABELS = [e.value for e in Emotion]
+
+_LABEL_ALIASES: dict[str, str] = {
+    "anger": "angry",
+    "happiness": "happy",
+    "sadness": "sad",
+    "surprise": "surprised",
+    "fear": "fearful",
+}
+
+
+def normalize_label(raw: str) -> str:
+    """Map any raw emotion label to the canonical set."""
+    low = raw.lower().strip()
+    if low in {e.value for e in Emotion}:
+        return low
+    return _LABEL_ALIASES.get(low, "neutral")
+
+
 class Trend(str, Enum):
     IMPROVING = "improving"
     WORSENING = "worsening"
@@ -33,9 +52,11 @@ class Tone(str, Enum):
 # ── WebSocket envelope ──────────────────────────────────────────────
 
 class WSMessage(BaseModel):
+    v: int = 1
     type: str
     payload: dict
     session_id: Optional[str] = None
+    ts: Optional[float] = None
 
 
 # ── Emotion payloads ────────────────────────────────────────────────

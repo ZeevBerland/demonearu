@@ -10,8 +10,11 @@ POSITIVE_LABELS = frozenset({"calm", "happy", "neutral", "surprised"})
 DOMINANT_SWITCH_MARGIN = 0.08
 DOMINANT_HOLD_UPDATES = 3
 
+MIN_SER_CONF = 0.3
+MIN_VER_CONF = 0.3
+
 DEFAULTS = {
-    "ema_alpha": 0.90,
+    "ema_alpha": 0.50,
     "trend_window_sec": 2.0,
     "buffer_max": 40,
     "ser_weight": 0.4,
@@ -55,6 +58,8 @@ class FusionService:
         self._current_dominant: str = "neutral"
         self._challenger: str | None = None
         self._challenger_streak: int = 0
+        self._last_ser_weak: bool = False
+        self._last_ver_weak: bool = False
 
     def _ensure_label(self, label: str) -> None:
         if label not in self._ema:
@@ -62,18 +67,25 @@ class FusionService:
 
     def add_ser_result(self, label: str, confidence: float, rms: float = 0.0) -> None:
         confidence = _safe(confidence)
+        weak = confidence < MIN_SER_CONF
         self._ensure_label(label)
-        self._ser_buffer.append({"label": label, "confidence": confidence, "ts": time.time()})
+        self._ser_buffer.append({
+            "label": label, "confidence": confidence, "weak": weak, "ts": time.time()
+        })
         self._last_rms = _safe(rms)
+        self._last_ser_weak = weak
         self._update_ema()
 
     def add_ver_result(self, label: str, confidence: float, face_present: bool) -> None:
         confidence = _safe(confidence)
+        weak = confidence < MIN_VER_CONF
         self._ensure_label(label)
-        self._ver_buffer.append(
-            {"label": label, "confidence": confidence, "face_present": face_present, "ts": time.time()}
-        )
+        self._ver_buffer.append({
+            "label": label, "confidence": confidence, "face_present": face_present,
+            "weak": weak, "ts": time.time()
+        })
         self._last_face_present = face_present
+        self._last_ver_weak = weak
         self._update_ema()
 
     # ── EMA ───────────────────────────────────────────────────────
@@ -96,6 +108,10 @@ class FusionService:
             ser_w = 0.2
         if not self._last_face_present:
             ver_w = 0.2
+        if self._last_ser_weak:
+            ser_w *= 0.5
+        if self._last_ver_weak:
+            ver_w *= 0.5
 
         total_w = ser_w + ver_w
         if total_w == 0:

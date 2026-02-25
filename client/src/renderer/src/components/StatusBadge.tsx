@@ -2,9 +2,9 @@ import type { AppStatus } from '../types'
 
 const STATUS_CONFIG: Record<AppStatus, { label: string; color: string; pulse: boolean }> = {
   idle: { label: 'Ready', color: 'bg-gray-500', pulse: false },
-  listening: { label: 'Listening', color: 'bg-red-500', pulse: true },
-  thinking: { label: 'Thinking', color: 'bg-amber-500', pulse: true },
-  speaking: { label: 'Speaking', color: 'bg-accent', pulse: true }
+  listening: { label: 'Listening…', color: 'bg-red-500', pulse: true },
+  thinking: { label: 'Reading your tone…', color: 'bg-amber-500', pulse: true },
+  speaking: { label: 'Speaking…', color: 'bg-accent', pulse: true }
 }
 
 export function StatusBadge({ status }: { status: AppStatus }) {

@@ -27,6 +27,7 @@ export function DebugPage() {
           <Row label="VER" value={metrics.ver_ms.toFixed(0)} />
           <Row label="LLM" value={metrics.llm_ms.toFixed(0)} />
           <Row label="TTS" value={metrics.tts_ms.toFixed(0)} />
+          <Row label="TTS First Byte" value={metrics.tts_first_chunk_ms.toFixed(0)} />
         </Section>
 
         {/* Raw SER */}

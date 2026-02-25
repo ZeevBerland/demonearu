@@ -1,9 +1,11 @@
 // ── WebSocket message types ─────────────────────────────────────────
 
 export interface WSMessage {
+  v: number
   type: string
   payload: Record<string, unknown>
   session_id: string | null
+  ts: number
 }
 
 // ── Emotion ─────────────────────────────────────────────────────────
@@ -30,6 +32,13 @@ export interface FusedEmotion {
   summary_text: string
 }
 
+export interface SensorFusedEmotion {
+  dominant: EmotionLabel
+  confidence: number
+  trend: Trend
+  face_present: boolean
+}
+
 export interface InterpretedEmotion {
   label: EmotionLabel
   confidence: number
@@ -51,6 +60,7 @@ export interface ChatMessage {
   timestamp: number
   tone?: string
   followUp?: string
+  reasoning?: string
 }
 
 // ── App status ──────────────────────────────────────────────────────
@@ -77,6 +87,9 @@ export interface AppSettings {
   demoMode: boolean
   demoEmotion: EmotionLabel
   cameraEnabled: boolean
+  simulateNoFace: boolean
+  simulateSttFailure: boolean
+  simulateCameraOff: boolean
 }
 
 // ── Debug ───────────────────────────────────────────────────────────
@@ -86,4 +99,5 @@ export interface DebugMetrics {
   ver_ms: number
   llm_ms: number
   tts_ms: number
+  tts_first_chunk_ms: number
 }

@@ -1,4 +1,5 @@
 import { useSessionStore } from '../store/sessionStore'
+import { useWebSocket } from '../hooks/useWebSocket'
 import type { EmotionLabel, SERMode } from '../types'
 
 const STT_MODELS = ['whisper-1', 'gpt-4o-mini-transcribe', 'gpt-4o-transcribe']
@@ -16,6 +17,9 @@ const DEMO_EMOTIONS: EmotionLabel[] = [
 export function SettingsPage() {
   const settings = useSessionStore((s) => s.settings)
   const update = useSessionStore((s) => s.updateSettings)
+  const memoryEnabled = useSessionStore((s) => s.memoryEnabled)
+  const setMemoryEnabled = useSessionStore((s) => s.setMemoryEnabled)
+  const { send } = useWebSocket()
 
   return (
     <div className="max-w-xl mx-auto p-6 space-y-8">
@@ -119,6 +123,36 @@ export function SettingsPage() {
       <fieldset className="space-y-4 border border-surface-3 rounded-lg p-4">
         <label className="text-sm font-medium text-gray-300">Fusion Tuning</label>
 
+        {/* Presets */}
+        <div className="space-y-1">
+          <p className="text-xs text-gray-500">Quick presets</p>
+          <div className="flex gap-2 flex-wrap">
+            {[
+              { name: 'Balanced', alpha: 0.50, voice: 0.40 },
+              { name: 'Voice-first', alpha: 0.50, voice: 0.70 },
+              { name: 'Face-first', alpha: 0.50, voice: 0.20 },
+              { name: 'Smooth', alpha: 0.25, voice: 0.40 },
+              { name: 'Reactive', alpha: 0.85, voice: 0.40 },
+            ].map((p) => (
+              <button
+                key={p.name}
+                onClick={() =>
+                  update({
+                    fusion: {
+                      ...settings.fusion,
+                      emaAlpha: p.alpha,
+                      voiceWeight: p.voice,
+                    },
+                  })
+                }
+                className="px-2.5 py-1 rounded text-xs bg-surface-2 text-gray-400 hover:text-white hover:bg-surface-3 transition-colors"
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Reactivity (EMA alpha) */}
         <div className="space-y-1">
           <div className="flex justify-between text-xs text-gray-400">
@@ -203,25 +237,93 @@ export function SettingsPage() {
         </div>
 
         {settings.demoMode && (
-          <div className="flex gap-2 flex-wrap">
-            {DEMO_EMOTIONS.map((e) => (
-              <button
-                key={e}
-                onClick={() => update({ demoEmotion: e })}
-                className={`
-                  px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors
-                  ${
-                    settings.demoEmotion === e
-                      ? 'bg-accent text-white'
-                      : 'bg-surface-2 text-gray-400 hover:text-gray-200'
-                  }
-                `}
-              >
-                {e}
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="flex gap-2 flex-wrap">
+              {DEMO_EMOTIONS.map((e) => (
+                <button
+                  key={e}
+                  onClick={() => update({ demoEmotion: e })}
+                  className={`
+                    px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors
+                    ${
+                      settings.demoEmotion === e
+                        ? 'bg-accent text-white'
+                        : 'bg-surface-2 text-gray-400 hover:text-gray-200'
+                    }
+                  `}
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+            <div className="space-y-2 pt-2 border-t border-surface-3">
+              <p className="text-xs text-gray-500">Simulation Toggles</p>
+              {[
+                { key: 'simulateNoFace' as const, label: 'Simulate no face' },
+                { key: 'simulateSttFailure' as const, label: 'Simulate STT failure' },
+                { key: 'simulateCameraOff' as const, label: 'Simulate camera off' },
+              ].map(({ key, label }) => (
+                <label key={key} className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings[key]}
+                    onChange={() => update({ [key]: !settings[key] })}
+                    className="accent-accent"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </>
         )}
+      </fieldset>
+
+      {/* Privacy & Memory */}
+      <fieldset className="space-y-4 border border-surface-3 rounded-lg p-4">
+        <label className="text-sm font-medium text-gray-300">Privacy & Memory</label>
+
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-300">Save conversation history</span>
+          <button
+            onClick={() => setMemoryEnabled(!memoryEnabled)}
+            className={`
+              relative inline-flex h-6 w-11 items-center rounded-full transition-colors
+              ${memoryEnabled ? 'bg-accent' : 'bg-surface-3'}
+            `}
+          >
+            <span
+              className={`
+                inline-block h-4 w-4 rounded-full bg-white transition-transform
+                ${memoryEnabled ? 'translate-x-6' : 'translate-x-1'}
+              `}
+            />
+          </button>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => send('memory.clear', { scope: 'session' })}
+            className="px-3 py-1.5 rounded text-xs bg-surface-2 text-gray-400 hover:text-white hover:bg-surface-3 transition-colors"
+          >
+            Clear current session
+          </button>
+          <button
+            onClick={() => {
+              if (confirm('Clear all stored memory? This cannot be undone.')) {
+                send('memory.clear', { scope: 'all' })
+              }
+            }}
+            className="px-3 py-1.5 rounded text-xs bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors"
+          >
+            Clear all memory
+          </button>
+        </div>
+
+        <p className="text-[11px] text-gray-600 leading-relaxed">
+          Emotion signals are approximate and optional. Camera processing is local — webcam
+          frames are never stored. Only transcripts and emotion summaries are saved to the
+          local database. Nearu adapts tone, not diagnosis.
+        </p>
       </fieldset>
     </div>
   )

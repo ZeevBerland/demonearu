@@ -10,13 +10,15 @@ block_cipher = None
 here = Path(SPECPATH)
 
 # Cross-platform venv site-packages discovery
+_candidates = [here / '.venv' / 'Lib' / 'site-packages']  # Windows
+_lib_dir = here / '.venv' / 'lib'
+if _lib_dir.exists():
+    _candidates += sorted(_lib_dir.glob('python*/site-packages'))  # macOS/Linux
+
 venv_sp = None
-for candidate in [
-    here / '.venv' / 'Lib' / 'site-packages',           # Windows
-    *sorted((here / '.venv' / 'lib').glob('python*/site-packages')) if (here / '.venv' / 'lib').exists() else [],  # macOS/Linux
-]:
-    if Path(candidate).exists():
-        venv_sp = Path(candidate)
+for candidate in _candidates:
+    if candidate.exists():
+        venv_sp = candidate
         break
 
 if venv_sp is None:

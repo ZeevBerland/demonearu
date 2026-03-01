@@ -66,6 +66,9 @@ if [[ "$PLATFORM" == "--mac" || "$PLATFORM" == "--all" ]]; then
         exit 1
     fi
 
+    echo "  Fixing permissions..."
+    chmod -R +x "$APP/Contents/Resources/orchestrator/" 2>/dev/null || true
+
     echo "  Re-signing: $APP"
     codesign --force --deep --sign - "$APP"
     codesign --verify --deep --strict "$APP" 2>&1 || true

@@ -38,7 +38,11 @@ jobs:
 
       - name: Verify orchestrator binary
         working-directory: orchestrator
-        run: ls -la dist/nearu-orchestrator/nearu-orchestrator
+        run: |
+          BIN="dist/nearu-orchestrator/nearu-orchestrator"
+          ls -la "$BIN"
+          file "$BIN"
+          echo "Binary size: $(du -sh dist/nearu-orchestrator | cut -f1)"
 
       # ── Inject default API keys from secrets ─────────────────────
       - name: Create default-keys.json
@@ -50,6 +54,16 @@ jobs:
             "GEMINI_API_KEY": "${{ secrets.GEMINI_API_KEY }}"
           }
           KEYSEOF
+
+      - name: Verify default-keys.json
+        working-directory: client
+        run: |
+          if [ -f default-keys.json ]; then
+            echo "default-keys.json exists ($(wc -c < default-keys.json) bytes)"
+            python3 -c "import json; d=json.load(open('default-keys.json')); print(f'OpenAI key: {\"set\" if d.get(\"OPENAI_API_KEY\") else \"EMPTY\"}, Gemini key: {\"set\" if d.get(\"GEMINI_API_KEY\") else \"EMPTY\"}')"
+          else
+            echo "WARNING: default-keys.json not found!"
+          fi
 
       # ── Node / Electron ──────────────────────────────────────────
       - name: Set up Node.js
@@ -72,6 +86,14 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npx electron-builder --mac --dir --publish never
+
+      # ── Ensure orchestrator binary is executable ─────────────────
+      - name: Fix orchestrator permissions
+        run: |
+          ORCH=$(find client/release -path "*/Resources/orchestrator" -type d | head -1)
+          echo "Setting +x on: $ORCH"
+          chmod -R +x "$ORCH"
+          ls -la "$ORCH/nearu-orchestrator" || echo "Binary not found!"
 
       # ── Re-sign to fix Team ID mismatch ────────────────────────
       - name: Ad-hoc codesign app bundle
@@ -101,6 +123,20 @@ jobs:
           ZIP_PATH="client/release/NearuVibe-${VERSION}-mac.zip"
           cd "$APP_DIR" && ditto -c -k --sequesterRsrc --keepParent "$APP_NAME" "../NearuVibe-${VERSION}-mac.zip"
           echo "ZIP created: $ZIP_PATH"
+
+      # ── Final verification ────────────────────────────────────────
+      - name: Verify packaged app contents
+        run: |
+          APP=$(find client/release -name "*.app" -maxdepth 2 -type d | head -1)
+          echo "=== App bundle: $APP ==="
+          echo "--- Orchestrator binary ---"
+          ls -la "$APP/Contents/Resources/orchestrator/nearu-orchestrator" 2>/dev/null || echo "NOT FOUND"
+          echo "--- Default keys ---"
+          ls -la "$APP/Contents/Resources/default-keys.json" 2>/dev/null || echo "NOT FOUND"
+          echo "--- Codesign verify ---"
+          codesign --verify --deep --strict "$APP" 2>&1 || echo "Signature verification failed (non-fatal for ad-hoc)"
+          echo "--- Bundle size ---"
+          du -sh "$APP"
 
       # ── Upload artifacts ─────────────────────────────────────────
       - name: Upload DMG

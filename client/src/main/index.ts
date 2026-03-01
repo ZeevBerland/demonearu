@@ -1,8 +1,11 @@
-import { app, BrowserWindow, shell, ipcMain } from 'electron'
-import { join, resolve } from 'path'
+import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron'
+import { join } from 'path'
 import { spawn, ChildProcess } from 'child_process'
 import { createServer } from 'net'
-import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync } from 'fs'
+import {
+  readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync,
+  chmodSync,
+} from 'fs'
 
 const isDev = !app.isPackaged
 
@@ -76,9 +79,10 @@ function getBackendPath(): string {
   return join(process.resourcesPath, 'orchestrator', `nearu-orchestrator${ext}`)
 }
 
-async function waitForHealth(port: number, timeoutMs = 60000): Promise<boolean> {
+async function waitForHealth(port: number, timeoutMs = 30000): Promise<boolean> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
+    if (!backendProcess) return false
     try {
       const resp = await fetch(`http://127.0.0.1:${port}/health`)
       if (resp.ok) return true
@@ -114,8 +118,24 @@ async function startBackend(config: Record<string, string>): Promise<void> {
     return
   }
 
+  if (process.platform !== 'win32') {
+    try {
+      chmodSync(binPath, 0o755)
+      logToFile(`chmod 755 applied to ${binPath}`)
+    } catch (e) {
+      logToFile(`chmod failed (non-fatal): ${e}`)
+    }
+  }
+
   backendPort = await findFreePort()
   const dataDir = getDataDir()
+
+  const hasOpenai = Boolean(config.OPENAI_API_KEY)
+  const hasGemini = Boolean(config.GEMINI_API_KEY)
+  logToFile(`API keys: openai=${hasOpenai}, gemini=${hasGemini}`)
+  if (!hasOpenai || !hasGemini) {
+    logToFile('WARNING: Missing API keys — backend will fail. Set keys in Settings.')
+  }
 
   const env: Record<string, string> = {
     ...process.env as Record<string, string>,
@@ -162,8 +182,17 @@ async function startBackend(config: Record<string, string>): Promise<void> {
 
   const ready = await waitForHealth(backendPort)
   if (!ready) {
-    console.error('[backend] Health check timed out')
-    logToFile('Health check timed out after 60s')
+    const reason = backendProcess ? 'Health check timed out (30s)' : 'Backend process exited immediately'
+    console.error('[backend]', reason)
+    logToFile(reason)
+    const logPath = join(getDataDir(), 'backend.log')
+    dialog.showErrorBox(
+      'Nearu Backend Failed',
+      `The backend could not start.\n\n` +
+      `Reason: ${reason}\n` +
+      `Keys loaded: OpenAI=${hasOpenai}, Gemini=${hasGemini}\n\n` +
+      `Check the log for details:\n${logPath}`
+    )
   } else {
     console.log('[backend] Ready')
     logToFile('Health check passed — ready')
@@ -219,6 +248,11 @@ function createWindow(): void {
 
 ipcMain.handle('get-ws-port', () => backendPort)
 ipcMain.handle('get-is-dev', () => isDev)
+ipcMain.handle('get-backend-status', () => ({
+  running: backendProcess !== null,
+  port: backendPort,
+  logPath: join(getDataDir(), 'backend.log'),
+}))
 
 ipcMain.handle('get-api-keys', () => {
   const effective = loadConfig()

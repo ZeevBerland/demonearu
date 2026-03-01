@@ -10,45 +10,35 @@ export function PushToTalkButton({ onPointerDown, onPointerUp }: PushToTalkButto
   const isListening = status === 'listening'
 
   return (
-    <div className="flex flex-col items-center gap-3">
-      <button
-        onPointerDown={onPointerDown}
-        onPointerUp={onPointerUp}
-        onPointerLeave={onPointerUp}
-        className={`
-          relative h-20 w-20 rounded-full border-2 transition-all duration-200
-          flex items-center justify-center select-none cursor-pointer
-          ${
-            isListening
-              ? 'border-red-500 bg-red-500/20 scale-110 shadow-lg shadow-red-500/25'
-              : 'border-surface-3 bg-surface-2 hover:bg-surface-3 hover:border-accent/50'
-          }
-        `}
-      >
-        {/* Mic icon */}
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className={`h-8 w-8 ${isListening ? 'text-red-400' : 'text-gray-400'}`}
-        >
-          <rect x="9" y="2" width="6" height="11" rx="3" />
-          <path d="M5 10a7 7 0 0 0 14 0" />
-          <line x1="12" y1="19" x2="12" y2="22" />
-        </svg>
-
-        {isListening && (
-          <span className="absolute inset-0 rounded-full border-2 border-red-500 animate-ping opacity-30" />
-        )}
-      </button>
-
-      <span className="text-xs text-gray-500">
-        {isListening ? 'Release to send' : 'Hold Space to talk'}
-      </span>
-    </div>
+    <button
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerLeave={onPointerUp}
+      className={`
+        flex items-center gap-2 rounded-full font-medium text-sm
+        transition-nearu select-none
+        ${isListening
+          ? 'bg-[#E05555] text-white px-7 py-3 shadow-[0_8px_24px_rgba(224,85,85,0.25)] hover:bg-[#CA4040] cursor-pointer'
+          : 'bg-blue-dark text-white px-7 py-3 shadow-[0_8px_24px_rgba(26,142,224,0.25)] hover:bg-[#1680CA] hover:-translate-y-px hover:shadow-[0_12px_28px_rgba(26,142,224,0.32)] cursor-pointer'
+        }
+      `}
+    >
+      {isListening ? (
+        <>
+          <svg width="15" height="15" fill="none" viewBox="0 0 16 16">
+            <rect x="3" y="3" width="10" height="10" rx="2" fill="white" />
+          </svg>
+          Release to send
+        </>
+      ) : (
+        <>
+          <svg width="15" height="15" fill="none" viewBox="0 0 16 16">
+            <path d="M8 2a6 6 0 1 0 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <path d="M12 2v4h-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Talk to Nearu
+        </>
+      )}
+    </button>
   )
 }

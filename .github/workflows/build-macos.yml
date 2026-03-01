@@ -40,6 +40,17 @@ jobs:
         working-directory: orchestrator
         run: ls -la dist/nearu-orchestrator/nearu-orchestrator
 
+      # ── Inject default API keys from secrets ─────────────────────
+      - name: Create default-keys.json
+        working-directory: client
+        run: |
+          cat > default-keys.json <<KEYSEOF
+          {
+            "OPENAI_API_KEY": "${{ secrets.OPENAI_API_KEY }}",
+            "GEMINI_API_KEY": "${{ secrets.GEMINI_API_KEY }}"
+          }
+          KEYSEOF
+
       # ── Node / Electron ──────────────────────────────────────────
       - name: Set up Node.js
         uses: actions/setup-node@v4

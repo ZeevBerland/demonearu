@@ -29,6 +29,7 @@ export interface FusedEmotion {
   confidence: number
   trend: Trend
   face_present: boolean
+  evidence_summary?: string
   summary_text: string
 }
 
@@ -42,7 +43,8 @@ export interface SensorFusedEmotion {
 export interface InterpretedEmotion {
   label: EmotionLabel
   confidence: number
-  reasoning?: string
+  trend?: Trend
+  evidence_summary?: string
 }
 
 export interface EmotionSnapshot {
@@ -60,7 +62,7 @@ export interface ChatMessage {
   timestamp: number
   tone?: string
   followUp?: string
-  reasoning?: string
+  evidenceSummary?: string
 }
 
 // ── App status ──────────────────────────────────────────────────────
@@ -69,7 +71,8 @@ export type AppStatus = 'idle' | 'listening' | 'thinking' | 'speaking'
 
 // ── Settings ────────────────────────────────────────────────────────
 
-export type SERMode = 'local' | 'gemini' | 'hybrid'
+export type SERMode = 'gemini'
+export type ThemeMode = 'dark'
 
 export interface FusionParams {
   emaAlpha: number
@@ -79,6 +82,7 @@ export interface FusionParams {
 }
 
 export interface AppSettings {
+  theme: ThemeMode
   sttModel: string
   ttsVoice: string
   emotionSensitivity: number
@@ -90,6 +94,15 @@ export interface AppSettings {
   simulateNoFace: boolean
   simulateSttFailure: boolean
   simulateCameraOff: boolean
+}
+
+// ── Quick Tools ──────────────────────────────────────────────────
+
+export interface QuickTool {
+  id: string
+  title: string
+  subtitle: string
+  icon: string
 }
 
 // ── Debug ───────────────────────────────────────────────────────────

@@ -17,6 +17,9 @@ pretrained_models/
 .env
 .env.local
 
+# Default API keys (never commit)
+default-keys.json
+
 # IDE
 .vscode/
 .idea/
@@ -36,3 +39,7 @@ release/
 
 # Logs
 *.log
+
+# PyInstaller
+orchestrator/build/
+orchestrator/dist/

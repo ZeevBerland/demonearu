@@ -12,5 +12,9 @@ interface ImportMeta {
 interface Window {
   electronAPI: {
     platform: string
+    getWsPort: () => Promise<number>
+    getIsDev: () => Promise<boolean>
+    getApiKeys: () => Promise<{ openai: string; gemini: string }>
+    saveApiKeys: (keys: { openai: string; gemini: string }) => Promise<{ success: boolean; port: number }>
   }
 }

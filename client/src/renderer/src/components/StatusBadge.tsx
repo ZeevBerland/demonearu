@@ -1,18 +1,18 @@
 import type { AppStatus } from '../types'
 
-const STATUS_CONFIG: Record<AppStatus, { label: string; color: string; pulse: boolean }> = {
-  idle: { label: 'Ready', color: 'bg-gray-500', pulse: false },
-  listening: { label: 'Listening…', color: 'bg-red-500', pulse: true },
-  thinking: { label: 'Reading your tone…', color: 'bg-amber-500', pulse: true },
-  speaking: { label: 'Speaking…', color: 'bg-accent', pulse: true }
+const STATUS_CONFIG: Record<AppStatus, { label: string; dotClass: string }> = {
+  idle: { label: 'Ready', dotClass: 'bg-ink-4' },
+  listening: { label: 'Listening', dotClass: 'bg-[#34C759] animate-pulse-green' },
+  thinking: { label: 'Thinking', dotClass: 'bg-blue animate-pulse-blue' },
+  speaking: { label: 'Responding', dotClass: 'bg-[#34C759] animate-pulse-green' },
 }
 
 export function StatusBadge({ status }: { status: AppStatus }) {
   const cfg = STATUS_CONFIG[status]
   return (
-    <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium bg-surface-2">
-      <span className={`h-2 w-2 rounded-full ${cfg.color} ${cfg.pulse ? 'animate-pulse' : ''}`} />
-      {cfg.label}
-    </span>
+    <div className="flex items-center gap-1.5 bg-card border border-border rounded-full py-[5px] pl-2 pr-3 text-xs font-medium text-ink-3 shadow-card">
+      <span className={`w-[7px] h-[7px] rounded-full ${cfg.dotClass}`} />
+      <span>{cfg.label}</span>
+    </div>
   )
 }

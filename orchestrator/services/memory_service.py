@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 from typing import Optional
 
+import os
+
 import aiosqlite
 
-DB_PATH = "nearu_memory.db"
+DB_PATH = os.path.join(os.environ.get("NEARU_DATA_DIR", "."), "nearu_memory.db")
 
 CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS episodes (

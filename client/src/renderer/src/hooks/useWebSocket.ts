@@ -2,8 +2,25 @@ import { useCallback, useEffect, useRef } from 'react'
 import { useSessionStore } from '../store/sessionStore'
 import type { FusedEmotion, InterpretedEmotion, SensorFusedEmotion, SERResult, VERResult } from '../types'
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8765/ws'
+const FALLBACK_WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8765/ws'
 const RECONNECT_DELAY = 2000
+
+let resolvedWsUrl: string | null = null
+
+async function getWsUrl(): Promise<string> {
+  if (resolvedWsUrl) return resolvedWsUrl
+  try {
+    const port = await window.electronAPI.getWsPort()
+    resolvedWsUrl = `ws://127.0.0.1:${port}/ws`
+  } catch {
+    resolvedWsUrl = FALLBACK_WS_URL
+  }
+  return resolvedWsUrl
+}
+
+export function resetResolvedWsUrl(): void {
+  resolvedWsUrl = null
+}
 
 export type AudioChunkCallback = (b64: string) => void
 
@@ -25,10 +42,11 @@ export function useWebSocket() {
   const setStatus = useSessionStore((s) => s.setStatus)
   const mergeDebug = useSessionStore((s) => s.mergeDebugMetrics)
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
 
-    const ws = new WebSocket(WS_URL)
+    const url = await getWsUrl()
+    const ws = new WebSocket(url)
     wsRef.current = ws
 
     ws.onopen = () => {
@@ -40,6 +58,7 @@ export function useWebSocket() {
         fusion: state.settings.fusion,
         device_id: state.deviceId,
         memory_enabled: state.memoryEnabled,
+        tts_voice: state.settings.ttsVoice,
       })
     }
 
@@ -101,7 +120,7 @@ export function useWebSocket() {
             timestamp: Date.now(),
             tone: payload.tone as string,
             followUp: payload.follow_up_question as string | undefined,
-            reasoning: (payload.interpreted_emotion as Record<string, unknown>)?.reasoning as string | undefined,
+            evidenceSummary: (payload.interpreted_emotion as Record<string, unknown>)?.evidence_summary as string | undefined,
           })
           setAudioStreaming(true)
           setStatus('speaking')

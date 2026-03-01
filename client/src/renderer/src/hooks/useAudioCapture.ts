@@ -8,33 +8,51 @@ interface UseAudioCaptureOptions {
 export function useAudioCapture({ onPcmChunk, timeslice = 1000 }: UseAudioCaptureOptions = {}) {
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const recStreamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const analyserRef = useRef<AnalyserNode | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
   const processorRef = useRef<ScriptProcessorNode | null>(null)
+  const activeRef = useRef(false)
+
+  const teardown = useCallback(() => {
+    activeRef.current = false
+    processorRef.current?.disconnect()
+    processorRef.current = null
+    audioCtxRef.current?.close()
+    audioCtxRef.current = null
+    analyserRef.current = null
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+    recStreamRef.current?.getTracks().forEach((t) => t.stop())
+    recStreamRef.current = null
+    try { recorderRef.current?.stop() } catch { /* already stopped */ }
+    recorderRef.current = null
+  }, [])
 
   const start = useCallback(async () => {
+    teardown()
+
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     streamRef.current = stream
 
-    // Audio context at 16kHz for SER PCM capture
     const ctx = new AudioContext({ sampleRate: 16000 })
     audioCtxRef.current = ctx
     const source = ctx.createMediaStreamSource(stream)
 
-    // Analyser for waveform visualisation
     const analyser = ctx.createAnalyser()
     analyser.fftSize = 256
     source.connect(analyser)
     analyserRef.current = analyser
 
-    // ScriptProcessor to capture raw PCM float32 for SER
     const processor = ctx.createScriptProcessor(4096, 1, 1)
     processorRef.current = processor
     source.connect(processor)
     processor.connect(ctx.destination)
 
+    activeRef.current = true
     processor.onaudioprocess = (e) => {
+      if (!activeRef.current) return
       const samples = e.inputBuffer.getChannelData(0)
       const buf = new Float32Array(samples)
       const bytes = new Uint8Array(buf.buffer)
@@ -45,8 +63,8 @@ export function useAudioCapture({ onPcmChunk, timeslice = 1000 }: UseAudioCaptur
       onPcmChunk?.(btoa(binary))
     }
 
-    // MediaRecorder for STT (sends full webm blob to OpenAI on stop)
     const recStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    recStreamRef.current = recStream
     const recorder = new MediaRecorder(recStream, { mimeType: 'audio/webm;codecs=opus' })
     recorderRef.current = recorder
     chunksRef.current = []
@@ -58,33 +76,40 @@ export function useAudioCapture({ onPcmChunk, timeslice = 1000 }: UseAudioCaptur
     }
 
     recorder.start(timeslice)
-  }, [onPcmChunk, timeslice])
+  }, [onPcmChunk, timeslice, teardown])
 
   const stop = useCallback(async (): Promise<Blob> => {
-    // Stop PCM capture
+    activeRef.current = false
     processorRef.current?.disconnect()
     processorRef.current = null
     audioCtxRef.current?.close()
     audioCtxRef.current = null
+    analyserRef.current = null
 
-    // Stop MediaRecorder and return full blob for STT
     return new Promise((resolve) => {
       const recorder = recorderRef.current
-      if (!recorder || recorder.state === 'inactive') {
-        resolve(new Blob(chunksRef.current, { type: 'audio/webm' }))
+      recorderRef.current = null
+
+      const cleanup = () => {
         streamRef.current?.getTracks().forEach((t) => t.stop())
+        streamRef.current = null
+        recStreamRef.current?.getTracks().forEach((t) => t.stop())
+        recStreamRef.current = null
+      }
+
+      if (!recorder || recorder.state === 'inactive') {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        cleanup()
+        resolve(blob)
         return
       }
 
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        cleanup()
         resolve(blob)
       }
       recorder.stop()
-
-      // Stop all mic streams
-      streamRef.current?.getTracks().forEach((t) => t.stop())
-      recorder.stream?.getTracks().forEach((t) => t.stop())
     })
   }, [])
 

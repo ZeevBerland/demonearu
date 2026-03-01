@@ -16,7 +16,7 @@ interface SessionState {
   sessionId: string | null
   deviceId: string
   status: AppStatus
-  currentPage: 'session' | 'settings'
+  currentPage: 'session' | 'settings' | 'setup'
   showDebug: boolean
   memoryEnabled: boolean
 
@@ -30,15 +30,17 @@ interface SessionState {
 
   messages: ChatMessage[]
   audioStreaming: boolean
+  activeRole: string | null
 
   settings: AppSettings
   debugMetrics: DebugMetrics
 
   setSessionId: (id: string) => void
   setStatus: (s: AppStatus) => void
-  setPage: (p: 'session' | 'settings') => void
+  setPage: (p: 'session' | 'settings' | 'setup') => void
   toggleDebug: () => void
   setMemoryEnabled: (v: boolean) => void
+  setActiveRole: (role: string | null) => void
 
   setPartialTranscript: (t: string) => void
   setSER: (r: SERResult) => void
@@ -56,10 +58,11 @@ interface SessionState {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
+  theme: 'dark',
   sttModel: 'whisper-1',
   ttsVoice: 'alloy',
   emotionSensitivity: 0.5,
-  serMode: 'local',
+  serMode: 'gemini',
   fusion: {
     emaAlpha: 0.50,
     trendWindowSec: 2.0,
@@ -110,6 +113,7 @@ export const useSessionStore = create<SessionState>((set) => ({
 
   messages: [],
   audioStreaming: false,
+  activeRole: null,
 
   settings: { ...DEFAULT_SETTINGS },
   debugMetrics: { ...DEFAULT_METRICS },
@@ -119,6 +123,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   setPage: (p) => set({ currentPage: p }),
   toggleDebug: () => set((s) => ({ showDebug: !s.showDebug })),
   setMemoryEnabled: (v) => set({ memoryEnabled: v }),
+  setActiveRole: (role) => set({ activeRole: role }),
 
   setPartialTranscript: (t) => set({ partialTranscript: t }),
   setSER: (r) => set({ serEmotion: r }),
@@ -154,6 +159,7 @@ export const useSessionStore = create<SessionState>((set) => ({
       emotionHistory: [],
       messages: [],
       audioStreaming: false,
+      activeRole: null,
       debugMetrics: { ...DEFAULT_METRICS }
     })
 }))

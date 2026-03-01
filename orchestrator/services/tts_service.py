@@ -6,7 +6,8 @@ from typing import AsyncIterator
 
 from openai import AsyncOpenAI
 
-CHUNK_SIZE = int(os.getenv("TTS_CHUNK_SIZE", "12288"))
+CHUNK_SIZE = int(os.getenv("TTS_CHUNK_SIZE", "65536"))
+FIRST_CHUNK_SIZE = int(os.getenv("TTS_FIRST_CHUNK_SIZE", "16384"))
 
 MODELS_WITH_INSTRUCTIONS = {"gpt-4o-mini-tts"}
 
@@ -49,16 +50,23 @@ class TTSService:
         speed: float = 1.0,
         instructions: str | None = None,
     ) -> AsyncIterator[str]:
-        """Yield base64-encoded MP3 chunks as they arrive from OpenAI."""
+        """Yield base64-encoded MP3 chunks as they arrive from OpenAI.
+
+        The first chunk is yielded at FIRST_CHUNK_SIZE (4KB default) to minimise
+        time-to-first-audio.  Subsequent chunks use the larger CHUNK_SIZE (64KB).
+        """
         kwargs = self._build_kwargs(text, voice, speed, instructions)
+        first_sent = False
 
         async with self._client.audio.speech.with_streaming_response.create(**kwargs) as response:
             buf = bytearray()
-            async for raw_chunk in response.iter_bytes(chunk_size=CHUNK_SIZE):
+            async for raw_chunk in response.iter_bytes(chunk_size=FIRST_CHUNK_SIZE):
                 buf.extend(raw_chunk)
-                if len(buf) >= CHUNK_SIZE:
+                threshold = FIRST_CHUNK_SIZE if not first_sent else CHUNK_SIZE
+                if len(buf) >= threshold:
                     yield base64.b64encode(bytes(buf)).decode("ascii")
                     buf = bytearray()
+                    first_sent = True
             if buf:
                 yield base64.b64encode(bytes(buf)).decode("ascii")
 

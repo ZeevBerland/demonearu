@@ -1,46 +1,19 @@
 import { useSessionStore } from '../store/sessionStore'
 
 const EMOTION_COLORS: Record<string, string> = {
-  neutral: 'text-gray-400',
-  calm: 'text-sky-400',
-  happy: 'text-amber-400',
-  sad: 'text-blue-400',
-  angry: 'text-red-400',
-  fearful: 'text-purple-400',
-  disgust: 'text-emerald-400',
-  surprised: 'text-pink-400',
-  contempt: 'text-orange-400',
+  neutral: '#94a3b8',
+  calm: '#38bdf8',
+  happy: '#fbbf24',
+  sad: '#60a5fa',
+  angry: '#f87171',
+  fearful: '#c084fc',
+  disgust: '#34d399',
+  surprised: '#f472b6',
+  contempt: '#fb923c',
 }
 
 function emotionColor(label: string): string {
-  return EMOTION_COLORS[label] ?? 'text-gray-300'
-}
-
-function Spinner() {
-  return (
-    <svg className="mx-auto h-4 w-4 animate-spin text-gray-400" viewBox="0 0 24 24" fill="none">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z" />
-    </svg>
-  )
-}
-
-function ConfidenceBar({ value }: { value: number }) {
-  const pct = Math.round(value * 100)
-  const low = pct < 40
-  return (
-    <div className="mt-1 flex items-center gap-2">
-      <div className="flex-1 h-1.5 bg-surface-2 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all ${low ? 'bg-gray-500' : 'bg-current'}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span className="text-[10px] text-gray-500 w-8 text-right">
-        {pct}%{low && ' low'}
-      </span>
-    </div>
-  )
+  return EMOTION_COLORS[label.toLowerCase()] ?? '#6EC1FF'
 }
 
 export function EmotionPanel() {
@@ -52,68 +25,96 @@ export function EmotionPanel() {
 
   const serProcessing = status === 'listening' || status === 'thinking'
 
+  const dominant = fused?.dominant ?? sensorFused?.dominant ?? null
+  const dominantConf = fused?.confidence ?? sensorFused?.confidence ?? 0
+
   return (
-    <div className="space-y-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Emotion</h3>
+    <div className="bg-card border border-border rounded-[14px] p-4 space-y-4">
+      <div className="text-[10px] font-medium tracking-[0.06em] uppercase text-ink-4">This session</div>
 
-      {/* Turn Interpretation — hero display */}
-      <div className="rounded-lg bg-surface-1 p-4 text-center">
-        <p className="text-[10px] uppercase tracking-widest text-gray-600 mb-1">Turn Interpretation</p>
-        {fused ? (
-          <>
-            <p className={`text-2xl font-bold capitalize ${emotionColor(fused.dominant)}`}>
-              {fused.dominant}
-            </p>
-            <ConfidenceBar value={fused.confidence} />
-          </>
-        ) : (
-          <p className="text-gray-600 text-sm">Waiting for input…</p>
-        )}
-      </div>
-
-      {/* Live Affect — sensor fusion */}
-      {sensorFused && (
-        <div className="rounded bg-surface-2 p-2 text-center">
-          <p className="text-[10px] uppercase tracking-widest text-gray-600 mb-0.5">Live Affect</p>
-          <p className={`text-sm font-semibold capitalize ${emotionColor(sensorFused.dominant)}`}>
-            {sensorFused.dominant}{' '}
-            <span className="text-gray-500 text-[10px]">
-              {Math.round(sensorFused.confidence * 100)}%
-            </span>
-          </p>
+      {/* Combined / Dominant */}
+      {dominant ? (
+        <div className="flex items-center gap-3">
+          <div
+            className="w-3 h-3 rounded-full shrink-0"
+            style={{ backgroundColor: emotionColor(dominant), boxShadow: `0 0 8px ${emotionColor(dominant)}60` }}
+          />
+          <span className="text-base font-semibold text-ink capitalize">{dominant}</span>
+          <span className="text-xs text-ink ml-auto">{Math.round(dominantConf * 100)}%</span>
         </div>
+      ) : (
+        <div className="text-xs text-ink-4 text-center py-2">Waiting for input…</div>
       )}
 
-      {/* Voice / Face Signal rows */}
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="rounded bg-surface-2 p-2">
-          <p className="text-gray-500 mb-1">Voice Signal</p>
-          {serProcessing ? (
-            <div className="py-0.5"><Spinner /></div>
-          ) : ser ? (
-            <p className={`font-medium capitalize ${emotionColor(ser.label)}`}>
-              {ser.label} <span className="text-gray-500">{Math.round(ser.confidence * 100)}%</span>
-            </p>
-          ) : (
-            <p className="text-gray-600">—</p>
-          )}
-        </div>
-        <div className="rounded bg-surface-2 p-2">
-          <p className="text-gray-500 mb-1">Face Signal</p>
-          {ver ? (
-            <>
-              <p className={`font-medium capitalize ${emotionColor(ver.label)}`}>
-                {ver.label} <span className="text-gray-500">{Math.round(ver.confidence * 100)}%</span>
-              </p>
-              {!ver.face_present && (
-                <p className="text-gray-600 text-[10px] mt-0.5">Camera off</p>
-              )}
-            </>
-          ) : (
-            <p className="text-gray-600">—</p>
-          )}
-        </div>
+      {/* Voice / Face signals */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Voice signal */}
+        <SignalCard
+          label="Voice"
+          processing={serProcessing}
+          emotion={ser?.label ?? null}
+          confidence={ser?.confidence ?? 0}
+        />
+
+        {/* Face signal */}
+        <SignalCard
+          label="Face"
+          processing={false}
+          emotion={ver?.label ?? null}
+          confidence={ver?.confidence ?? 0}
+          inactive={ver ? !ver.face_present : false}
+        />
       </div>
+    </div>
+  )
+}
+
+function SignalCard({
+  label,
+  processing,
+  emotion,
+  confidence,
+  inactive,
+}: {
+  label: string
+  processing: boolean
+  emotion: string | null
+  confidence: number
+  inactive?: boolean
+}) {
+  const color = emotion ? emotionColor(emotion) : '#565B6E'
+  const pct = Math.round(confidence * 100)
+
+  return (
+    <div className="bg-bg border border-border rounded-[10px] p-3 space-y-2">
+      <div className="text-[10px] font-medium tracking-[0.04em] uppercase text-ink-2">{label}</div>
+
+      {processing ? (
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-blue animate-pulse" />
+          <span className="text-xs text-ink-2 animate-pulse">Analyzing…</span>
+        </div>
+      ) : emotion ? (
+        <>
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}50` }}
+            />
+            <span className="text-sm font-semibold text-ink capitalize">{emotion}</span>
+            {inactive && <span className="text-[10px] text-ink-3">(off)</span>}
+          </div>
+          <div className="w-full h-[4px] bg-border rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${pct}%`, backgroundColor: color }}
+            />
+          </div>
+          <div className="text-[11px] text-ink text-right">{pct}%</div>
+        </>
+      ) : (
+        <span className="text-xs text-ink-3">—</span>
+      )}
     </div>
   )
 }

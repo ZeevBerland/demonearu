@@ -7,12 +7,62 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:all": "npm run build && electron-builder --win --mac"
+  },
+  "build": {
+    "appId": "com.nearu.sense",
+    "productName": "NearuVibe",
+    "directories": {
+      "output": "release"
+    },
+    "extraResources": [
+      {
+        "from": "../orchestrator/dist/nearu-orchestrator",
+        "to": "orchestrator",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "default-keys.json",
+        "to": "default-keys.json"
+      }
+    ],
+    "files": [
+      "out/**/*",
+      "!node_modules"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "icon": "public/nearuai_icon.jpg"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "public/nearuai_icon.jpg",
+      "category": "public.app-category.productivity"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    },
+    "dmg": {
+      "contents": [
+        { "x": 130, "y": 220 },
+        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+      ]
+    }
   },
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "recharts": "^2.15.0",
     "zustand": "^5.0.2"
   },
   "devDependencies": {

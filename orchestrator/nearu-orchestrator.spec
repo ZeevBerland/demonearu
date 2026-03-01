@@ -37,6 +37,7 @@ proto_datas, proto_bins, proto_hidden = collect_all('google.protobuf')
 grpc_hidden = collect_submodules('grpc')
 openai_datas = collect_data_files('openai')
 pil_datas, pil_bins, pil_hidden = collect_all('PIL')
+certifi_datas = collect_data_files('certifi')
 anyio_hidden = collect_submodules('anyio')
 
 a = Analysis(
@@ -48,7 +49,7 @@ a = Analysis(
         (str(here / 'services'), 'services'),
         (str(here / 'models'), 'models'),
         (str(here / 'utils'), 'utils'),
-    ] + cv2_datas + onnx_datas + hsemo_datas + gai_datas + proto_datas + openai_datas + pil_datas,
+    ] + cv2_datas + onnx_datas + hsemo_datas + gai_datas + proto_datas + openai_datas + pil_datas + certifi_datas,
     hiddenimports=[
         # FastAPI / Uvicorn
         'uvicorn',
@@ -82,6 +83,7 @@ a = Analysis(
         'pydantic',
         'pydantic.deprecated',
         'pydantic.deprecated.decorator',
+        'certifi',
     ] + cv2_hidden + onnx_hidden + hsemo_hidden + gai_hidden + proto_hidden
       + grpc_hidden + pil_hidden + anyio_hidden,
     hookspath=[],

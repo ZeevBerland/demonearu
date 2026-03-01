@@ -17,6 +17,9 @@ if ! command -v pyinstaller &> /dev/null; then
     pip install pyinstaller
 fi
 
+echo "  Pre-downloading hsemotion ONNX model..."
+python -c "from hsemotion_onnx.facial_emotions import HSEmotionRecognizer; HSEmotionRecognizer(model_name='enet_b0_8_va_mtl'); print('  Model cached.')" 2>/dev/null || echo "  (model pre-download skipped)"
+
 pyinstaller nearu-orchestrator.spec --noconfirm
 popd > /dev/null
 

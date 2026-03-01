@@ -2,6 +2,15 @@ from __future__ import annotations
 
 import os
 import sys
+
+# Fix SSL certificates in PyInstaller bundles (macOS bundles lack system certs)
+if getattr(sys, 'frozen', False):
+    try:
+        import certifi
+        os.environ.setdefault('SSL_CERT_FILE', certifi.where())
+    except ImportError:
+        pass
+
 from contextlib import asynccontextmanager
 
 import uvicorn

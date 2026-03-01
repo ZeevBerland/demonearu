@@ -30,6 +30,16 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
+      - name: Pre-download hsemotion ONNX model
+        working-directory: orchestrator
+        run: |
+          source .venv/bin/activate
+          python -c "
+          from hsemotion_onnx.facial_emotions import HSEmotionRecognizer
+          m = HSEmotionRecognizer(model_name='enet_b0_8_va_mtl')
+          print('Model downloaded and cached in package directory')
+          "
+
       - name: Freeze orchestrator with PyInstaller
         working-directory: orchestrator
         run: |

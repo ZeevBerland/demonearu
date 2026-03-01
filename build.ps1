@@ -24,6 +24,9 @@ if (-not (Get-Command pyinstaller -ErrorAction SilentlyContinue)) {
     pip install pyinstaller
 }
 
+Write-Host "  Pre-downloading hsemotion ONNX model..." -ForegroundColor Gray
+try { python -c "from hsemotion_onnx.facial_emotions import HSEmotionRecognizer; HSEmotionRecognizer(model_name='enet_b0_8_va_mtl'); print('  Model cached.')" } catch { Write-Host "  (model pre-download skipped)" }
+
 pyinstaller nearu-orchestrator.spec --noconfirm
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
 Pop-Location

@@ -48,7 +48,14 @@
         "zip"
       ],
       "icon": "public/nearuai_icon.jpg",
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSCameraUsageDescription": "Nearu uses your camera for visual emotion recognition.",
+        "NSMicrophoneUsageDescription": "Nearu uses your microphone for voice interaction and speech emotion recognition."
+      }
     },
     "nsis": {
       "oneClick": false,

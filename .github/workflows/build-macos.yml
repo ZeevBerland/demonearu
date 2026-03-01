@@ -69,9 +69,7 @@ jobs:
 
       - name: Package macOS app
         working-directory: client
-        run: npx electron-builder --mac
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --mac --publish never
 
       # ── Upload artifacts ─────────────────────────────────────────
       - name: Upload DMG

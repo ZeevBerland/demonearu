@@ -2,6 +2,8 @@
   "name": "nearu-sense",
   "version": "0.2.0",
   "description": "Nearu Sense — emotion-aware AI assistant",
+  "author": "NearuAI",
+  "repository": "https://github.com/ZeevBerland/demonearu",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",

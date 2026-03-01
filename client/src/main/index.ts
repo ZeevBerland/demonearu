@@ -251,8 +251,11 @@ app.whenReady().then(async () => {
   await startBackend(config)
   createWindow()
 
-  app.on('activate', () => {
+  app.on('activate', async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
+      if (!backendProcess) {
+        await startBackend(loadConfig())
+      }
       createWindow()
     }
   })
@@ -263,8 +266,8 @@ app.on('before-quit', () => {
 })
 
 app.on('window-all-closed', () => {
-  killBackend()
   if (process.platform !== 'darwin') {
+    killBackend()
     app.quit()
   }
 })

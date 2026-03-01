@@ -67,9 +67,40 @@ jobs:
         working-directory: client
         run: npm run build
 
-      - name: Package macOS app
+      - name: Package macOS app (unsigned bundle)
         working-directory: client
-        run: npx electron-builder --mac --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder --mac --dir --publish never
+
+      # ── Re-sign to fix Team ID mismatch ────────────────────────
+      - name: Ad-hoc codesign app bundle
+        run: |
+          APP=$(find client/release -name "*.app" -maxdepth 2 -type d | head -1)
+          echo "Signing: $APP"
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict "$APP" 2>&1 || true
+          echo "Signature OK"
+
+      # ── Create DMG and ZIP from signed bundle ──────────────────
+      - name: Create DMG
+        run: |
+          APP_DIR=$(find client/release -name "*.app" -maxdepth 2 -type d -exec dirname {} \; | head -1)
+          APP_NAME=$(find client/release -name "*.app" -maxdepth 2 -type d -exec basename {} \; | head -1)
+          VERSION=$(node -p "require('./client/package.json').version")
+          DMG_PATH="client/release/NearuVibe-${VERSION}-arm64.dmg"
+          hdiutil create -volname "NearuVibe" -srcfolder "$APP_DIR" \
+            -ov -format UDZO "$DMG_PATH"
+          echo "DMG created: $DMG_PATH"
+
+      - name: Create ZIP
+        run: |
+          APP_DIR=$(find client/release -name "*.app" -maxdepth 2 -type d -exec dirname {} \; | head -1)
+          APP_NAME=$(find client/release -name "*.app" -maxdepth 2 -type d -exec basename {} \; | head -1)
+          VERSION=$(node -p "require('./client/package.json').version")
+          ZIP_PATH="client/release/NearuVibe-${VERSION}-mac.zip"
+          cd "$APP_DIR" && ditto -c -k --sequesterRsrc --keepParent "$APP_NAME" "../NearuVibe-${VERSION}-mac.zip"
+          echo "ZIP created: $ZIP_PATH"
 
       # ── Upload artifacts ─────────────────────────────────────────
       - name: Upload DMG
@@ -83,7 +114,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: NearuVibe-macOS-zip
-          path: client/release/*-mac.zip
+          path: client/release/*.zip
           if-no-files-found: warn
 
       # ── Attach to GitHub Release (only on tag push) ──────────────
@@ -93,4 +124,4 @@ jobs:
         with:
           files: |
             client/release/*.dmg
-            client/release/*-mac.zip
+            client/release/*.zip

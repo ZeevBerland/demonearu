@@ -2,14 +2,10 @@ import { useCallback, useRef } from 'react'
 
 interface UseAudioCaptureOptions {
   onPcmChunk?: (b64: string) => void
-  timeslice?: number
 }
 
-export function useAudioCapture({ onPcmChunk, timeslice = 1000 }: UseAudioCaptureOptions = {}) {
-  const recorderRef = useRef<MediaRecorder | null>(null)
+export function useAudioCapture({ onPcmChunk }: UseAudioCaptureOptions = {}) {
   const streamRef = useRef<MediaStream | null>(null)
-  const recStreamRef = useRef<MediaStream | null>(null)
-  const chunksRef = useRef<Blob[]>([])
   const analyserRef = useRef<AnalyserNode | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
   const processorRef = useRef<ScriptProcessorNode | null>(null)
@@ -24,10 +20,6 @@ export function useAudioCapture({ onPcmChunk, timeslice = 1000 }: UseAudioCaptur
     analyserRef.current = null
     streamRef.current?.getTracks().forEach((t) => t.stop())
     streamRef.current = null
-    recStreamRef.current?.getTracks().forEach((t) => t.stop())
-    recStreamRef.current = null
-    try { recorderRef.current?.stop() } catch { /* already stopped */ }
-    recorderRef.current = null
   }, [])
 
   const start = useCallback(async () => {
@@ -62,55 +54,17 @@ export function useAudioCapture({ onPcmChunk, timeslice = 1000 }: UseAudioCaptur
       }
       onPcmChunk?.(btoa(binary))
     }
+  }, [onPcmChunk, teardown])
 
-    const recStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    recStreamRef.current = recStream
-    const recorder = new MediaRecorder(recStream, { mimeType: 'audio/webm;codecs=opus' })
-    recorderRef.current = recorder
-    chunksRef.current = []
-
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) {
-        chunksRef.current.push(e.data)
-      }
-    }
-
-    recorder.start(timeslice)
-  }, [onPcmChunk, timeslice, teardown])
-
-  const stop = useCallback(async (): Promise<Blob> => {
+  const stop = useCallback(() => {
     activeRef.current = false
     processorRef.current?.disconnect()
     processorRef.current = null
     audioCtxRef.current?.close()
     audioCtxRef.current = null
     analyserRef.current = null
-
-    return new Promise((resolve) => {
-      const recorder = recorderRef.current
-      recorderRef.current = null
-
-      const cleanup = () => {
-        streamRef.current?.getTracks().forEach((t) => t.stop())
-        streamRef.current = null
-        recStreamRef.current?.getTracks().forEach((t) => t.stop())
-        recStreamRef.current = null
-      }
-
-      if (!recorder || recorder.state === 'inactive') {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
-        cleanup()
-        resolve(blob)
-        return
-      }
-
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
-        cleanup()
-        resolve(blob)
-      }
-      recorder.stop()
-    })
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
   }, [])
 
   const getFrequencyData = useCallback((): Uint8Array => {

@@ -43,7 +43,6 @@ export function SessionPage() {
 
   const { start: startAudio, stop: stopAudio, getFrequencyData } = useAudioCapture({
     onPcmChunk,
-    timeslice: 1000
   })
 
   void getFrequencyData
@@ -164,17 +163,12 @@ export function SessionPage() {
     if (cameraEnabled) startVideo()
   }, [teardownMediaSource, startAudio, startVideo, cameraEnabled, setPartial, setAudioStreaming])
 
-  const handlePTTStop = useCallback(async () => {
+  const handlePTTStop = useCallback(() => {
     listeningRef.current = false
     stopVideo()
-    const audioBlob = await stopAudio()
-    if (audioBlob.size < 1000) {
-      setStatus('idle')
-      return
-    }
-
+    stopAudio()
     send('turn.complete', { duration_ms: 0 })
-  }, [stopAudio, stopVideo, send, setStatus])
+  }, [stopAudio, stopVideo, send])
 
   const { manualStart, manualStop } = usePushToTalk({ onStart: handlePTTStart, onStop: handlePTTStop })
 

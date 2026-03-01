@@ -66,10 +66,15 @@ if [[ "$PLATFORM" == "--mac" || "$PLATFORM" == "--all" ]]; then
         exit 1
     fi
 
-    echo "  Fixing permissions..."
-    chmod -R +x "$APP/Contents/Resources/orchestrator/" 2>/dev/null || true
+    ORCH="$APP/Contents/Resources/orchestrator"
 
-    echo "  Re-signing: $APP"
+    echo "  Fixing permissions..."
+    chmod -R +x "$ORCH" 2>/dev/null || true
+
+    echo "  Signing all Mach-O binaries in orchestrator..."
+    find "$ORCH" -type f -exec sh -c 'file "$1" | grep -q "Mach-O" && codesign --force --sign - "$1" 2>/dev/null' _ {} \;
+
+    echo "  Re-signing app bundle..."
     codesign --force --deep --sign - "$APP"
     codesign --verify --deep --strict "$APP" 2>&1 || true
 

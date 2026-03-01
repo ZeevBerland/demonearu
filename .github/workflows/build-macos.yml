@@ -87,22 +87,29 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npx electron-builder --mac --dir --publish never
 
-      # ── Ensure orchestrator binary is executable ─────────────────
-      - name: Fix orchestrator permissions
-        run: |
-          ORCH=$(find client/release -path "*/Resources/orchestrator" -type d | head -1)
-          echo "Setting +x on: $ORCH"
-          chmod -R +x "$ORCH"
-          ls -la "$ORCH/nearu-orchestrator" || echo "Binary not found!"
-
-      # ── Re-sign to fix Team ID mismatch ────────────────────────
-      - name: Ad-hoc codesign app bundle
+      # ── Fix permissions + sign ALL binaries ─────────────────────
+      - name: Fix permissions and codesign
         run: |
           APP=$(find client/release -name "*.app" -maxdepth 2 -type d | head -1)
-          echo "Signing: $APP"
+          ORCH="$APP/Contents/Resources/orchestrator"
+
+          echo "=== Fixing execute permissions ==="
+          chmod -R +x "$ORCH"
+
+          echo "=== Signing all Mach-O binaries in orchestrator _internal ==="
+          SIGNED=0
+          find "$ORCH" -type f | while read f; do
+            if file "$f" | grep -q "Mach-O"; then
+              codesign --force --sign - "$f" 2>/dev/null && SIGNED=$((SIGNED+1))
+            fi
+          done
+          echo "Signed orchestrator binaries"
+
+          echo "=== Signing main app bundle ==="
           codesign --force --deep --sign - "$APP"
-          codesign --verify --deep --strict "$APP" 2>&1 || true
-          echo "Signature OK"
+          echo "=== Verifying ==="
+          codesign --verify --deep --strict "$APP" 2>&1 || echo "(non-fatal for ad-hoc)"
+          echo "Done"
 
       # ── Create DMG and ZIP from signed bundle ──────────────────
       - name: Create DMG

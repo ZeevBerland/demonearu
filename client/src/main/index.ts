@@ -2,10 +2,7 @@ import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { spawn, ChildProcess } from 'child_process'
 import { createServer } from 'net'
-import {
-  readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync,
-  chmodSync,
-} from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync } from 'fs'
 
 const isDev = !app.isPackaged
 
@@ -116,15 +113,6 @@ async function startBackend(config: Record<string, string>): Promise<void> {
     console.error('[backend]', msg)
     logToFile(msg)
     return
-  }
-
-  if (process.platform !== 'win32') {
-    try {
-      chmodSync(binPath, 0o755)
-      logToFile(`chmod 755 applied to ${binPath}`)
-    } catch (e) {
-      logToFile(`chmod failed (non-fatal): ${e}`)
-    }
   }
 
   backendPort = await findFreePort()
